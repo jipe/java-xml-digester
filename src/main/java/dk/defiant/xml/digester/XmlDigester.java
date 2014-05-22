@@ -30,8 +30,6 @@ import dk.defiant.xml.digester.responses.BadHandlerResponse;
 /**
  * Class for digesting XML into Java objects
  * 
- * @author jip
- *
  */
 @NotThreadSafe
 public class XmlDigester {
