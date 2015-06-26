@@ -165,7 +165,7 @@ public class SimpleAnnotationBasedHandler extends DigesterEventHandler {
 	
 	@Override
 	public HandlerResponse handle(XMLEvent event, Object digestTarget) throws XMLStreamException {
-		if (XMLEvent.START_ELEMENT == event.getEventType()) {
+		if (event.isStartElement()) {
 			StartElement element = event.asStartElement();
 			String uri = element.getName().getNamespaceURI();
 			if (rootName.getNamespaceURI().equals(uri)) {
@@ -188,7 +188,7 @@ public class SimpleAnnotationBasedHandler extends DigesterEventHandler {
 					resetCharacterBuffer();
 				}
 			}
-		} else if (XMLEvent.END_ELEMENT == event.getEventType()) {
+		} else if (event.isEndElement()) {
 			EndElement element = event.asEndElement();
 			if (rootName.equals(element.getName())) {
 				return new FinishedParsingResponse();

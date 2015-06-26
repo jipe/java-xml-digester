@@ -20,7 +20,7 @@ import javax.xml.stream.events.Attribute;
 import javax.xml.stream.events.StartElement;
 import javax.xml.stream.events.XMLEvent;
 
-import net.jcip.annotations.NotThreadSafe;
+import net.jcip.annotations.ThreadSafe;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,19 +31,20 @@ import dk.defiant.xml.digester.responses.BadHandlerResponse;
  * Class for digesting XML into Java objects
  * 
  */
-@NotThreadSafe
+@ThreadSafe
 public class XmlDigester {
 
 	private static final Logger log = LoggerFactory.getLogger(XmlDigester.class);
 	
-	private Stack<DigesterEventHandler> eventHandlers = new Stack<DigesterEventHandler>();
-	private Stack<Object> digestTargets = new Stack<Object>();
-	private int depth, ignoredElementDepth;
-	private boolean ignoring;
-
-	private XMLEventReader eventReader;
-	private XMLEvent event;
-		
+	public class State {
+	    Stack<DigesterEventHandler> eventHandlers = new Stack<DigesterEventHandler>();
+	    Stack<Object> digestTargets = new Stack<Object>();
+	    int depth, ignoredElementDepth;
+	    boolean ignoring;
+	    XMLEventReader eventReader;
+	    XMLEvent event;
+	}
+	
 	/**
 	 * Digest XML from a {@link String} into Java objects.
 	 * 
@@ -81,38 +82,40 @@ public class XmlDigester {
 	 * @throws XMLStreamException
 	 */
 	public final void digest(Reader reader, Object digestTarget, DigesterEventHandler eventHandler) throws XMLStreamException {
-		eventHandler.setXmlDigester(this);
-		depth = 0;
-		ignoredElementDepth = 0;
-		ignoring = false;
+		State state = new State();
+        eventHandler.setXmlDigester(this);
+        eventHandler.setXmlDigesterState(state);
+		state.depth = 0;
+		state.ignoredElementDepth = 0;
+		state.ignoring = false;
         XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
-        eventReader = xmlInputFactory.createXMLEventReader(reader);
-		eventHandlers.push(eventHandler);
-		digestTargets.push(digestTarget);
-		while (eventReader.hasNext() && eventHandlers.size() > 0) {
-			event = eventReader.nextEvent();
-			if (XMLEvent.START_ELEMENT == event.getEventType()) {
-				depth++;
-			} else if (XMLEvent.END_ELEMENT == event.getEventType()) {
-				depth--;
+        state.eventReader = xmlInputFactory.createXMLEventReader(reader);
+		state.eventHandlers.push(eventHandler);
+		state.digestTargets.push(digestTarget);
+		while (state.eventReader.hasNext() && state.eventHandlers.size() > 0) {
+			state.event = state.eventReader.nextEvent();
+			if (state.event.isStartElement()) {
+			    state.depth++;
+			} else if (state.event.isEndElement()) {
+			    state.depth--;
 			}
-			if (ignoring && depth < ignoredElementDepth) {
+			if (state.ignoring && state.depth < state.ignoredElementDepth) {
 				// We've escaped the ignored element
-				ignoring = false;
+			    state.ignoring = false;
 			}
-			if (ignoring) {
+			if (state.ignoring) {
 				// Ignore event
 				if (log.isDebugEnabled()) {
-					if (XMLEvent.START_ELEMENT == event.getEventType()) {
-						log.debug("Ignoring element '{}'", event.asStartElement().getName().getLocalPart());
+					if (state.event.isStartElement()) {
+						log.debug("Ignoring element '{}'", state.event.asStartElement().getName().getLocalPart());
 					}
 				}
 			} else {
-				// Handler wants to delegate parsing to another handler
-				HandlerResponse response = eventHandlers.peek().handle(event, digestTargets.peek());
+				HandlerResponse response = state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
 				if (HandlerResponse.Type.DELEGATE.equals(response.getType())) {
-					Object newDigestTarget = response.getDigestTarget() == null ? digestTargets.peek() : response.getDigestTarget();
-					digestTargets.push(newDigestTarget);
+					// Handler wants to delegate parsing to another handler
+					Object newDigestTarget = response.getDigestTarget() == null ? state.digestTargets.peek() : response.getDigestTarget();
+					state.digestTargets.push(newDigestTarget);
 					DigesterEventHandler handler = response.getHandler();
 					if (handler == null) {
 						// Only class of handler was given so we make a new instance of it
@@ -127,55 +130,55 @@ public class XmlDigester {
 						}
 					}
 					handler.setXmlDigester(this);
-					eventHandlers.push(handler);
-					eventHandlers.peek().handle(event, digestTargets.peek());
+					state.eventHandlers.push(handler);
+					state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
 				} else if (HandlerResponse.Type.FINISHED_PARSING.equals(response.getType())) {
 					// Handler finished its parsing
-					eventHandlers.pop();
-					if (eventHandlers.size() > 0) {
-						eventHandlers.peek().handle(event, digestTargets.peek());
+				    state.eventHandlers.pop();
+					if (state.eventHandlers.size() > 0) {
+					    state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
 					}
-					digestTargets.pop();
+					state.digestTargets.pop();
 				} else if (HandlerResponse.Type.ERROR.equals(response.getType())) {
 					// Handler returned an error
 					throw new RuntimeException("Handler returned " + BadHandlerResponse.class.getSimpleName());
 				} else if (HandlerResponse.Type.IGNORE_ELEMENT.equals(response.getType())) {
 					// Handler wants to ignore an element
-					ignoredElementDepth = depth;
-					ignoring = true;
+				    state.ignoredElementDepth = state.depth;
+				    state.ignoring = true;
 				}
 			}
 		}
 	}
 	
-	String getText() throws XMLStreamException {
-		return eventReader.getElementText();
+	String getText(State state) throws XMLStreamException {
+		return state.eventReader.getElementText();
 	}
 	
-	String getXmlFragment(boolean includeFragmentRoot) throws XMLStreamException {
+	String getXmlFragment(State state, boolean includeFragmentRoot) throws XMLStreamException {
 		StringWriter writer = new StringWriter();
 		int depth = 1; // Assuming we are viewing the start element event for the fragment
-		while (eventReader.hasNext() && depth > 0) {
+		while (state.eventReader.hasNext() && depth > 0) {
 			if (depth > 1 || includeFragmentRoot) {
-				event.writeAsEncodedUnicode(writer);
+			    state.event.writeAsEncodedUnicode(writer);
 			} 
-			event = eventReader.nextEvent();
-			if (XMLEvent.START_ELEMENT == event.getEventType()) {
+			state.event = state.eventReader.nextEvent();
+			if (XMLEvent.START_ELEMENT == state.event.getEventType()) {
 				depth++;
-			} else if (XMLEvent.END_ELEMENT == event.getEventType()) {
+			} else if (XMLEvent.END_ELEMENT == state.event.getEventType()) {
 				depth--;
 				if (depth == 0) {
-					event.writeAsEncodedUnicode(writer);
+				    state.event.writeAsEncodedUnicode(writer);
 				}
 			}
 		}
 		return writer.toString();
 	}
 	
-	Map<QName, String> getAttributes() {
+	Map<QName, String> getAttributes(State state) {
 		Map<QName, String> result = new HashMap<QName, String>();
-		if (event != null && XMLEvent.START_ELEMENT == event.getEventType()) {
-			StartElement element = event.asStartElement();
+		if (state.event != null && XMLEvent.START_ELEMENT == state.event.getEventType()) {
+			StartElement element = state.event.asStartElement();
 			@SuppressWarnings("unchecked")
 			Iterator<Attribute> attributes = element.getAttributes();
 			while (attributes.hasNext()) {

@@ -7,6 +7,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Characters;
 import javax.xml.stream.events.XMLEvent;
 
+import net.jcip.annotations.NotThreadSafe;
 import dk.defiant.xml.digester.responses.ContinueParsingResponse;
 import dk.defiant.xml.digester.responses.DelegateParsingResponse;
 import dk.defiant.xml.digester.responses.FinishedParsingResponse;
@@ -17,9 +18,11 @@ import dk.defiant.xml.digester.responses.FinishedParsingResponse;
  * @author jip
  *
  */
+@NotThreadSafe
 public abstract class DigesterEventHandler {
 
-	private XmlDigester digester;
+    private XmlDigester digester;
+	private XmlDigester.State digesterState;
 	private StringBuilder characterBuffer = new StringBuilder();
 	
 	/**
@@ -51,11 +54,11 @@ public abstract class DigesterEventHandler {
 	 * <p>
 	 * A handler can tell the digester that it is finished parsing the
 	 * XML it was interested in by returning a {@link FinishedParsingResponse}.
-	 * The digester will the send further events to the handler that delegated
+	 * The digester will then send further events to the handler that delegated
 	 * handling to this handler and re-establish the digest target that was
 	 * active prior to the delegation.
 	 * <p>
-	 * A handlers can tell the digester that it should continue sending events
+	 * A handler can tell the digester that it should continue sending events
 	 * by returning a {@link ContinueParsingResponse}.
 	 * </p>
 	 * <p>
@@ -211,18 +214,22 @@ public abstract class DigesterEventHandler {
 	}
 	
 	protected String getText() throws XMLStreamException {
-		return digester.getText();
+		return digester.getText(digesterState);
 	}
 	
 	protected String getXmlFragment(boolean includeFragmentRoot) throws XMLStreamException {
-		return digester.getXmlFragment(includeFragmentRoot);
+		return digester.getXmlFragment(digesterState, includeFragmentRoot);
 	}
 	
 	void setXmlDigester(XmlDigester digester) {
 		this.digester = digester;
 	}
 	
+	void setXmlDigesterState(XmlDigester.State state) {
+	    this.digesterState = state;
+	}
+	
 	public Map<QName, String> getAttributes() {
-		return this.digester.getAttributes();
+		return digester.getAttributes(digesterState);
 	}
 }
