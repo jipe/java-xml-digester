@@ -84,31 +84,25 @@ public PersonHandler extends SimpleDigesterEventHandler {
   }
   
   @Override
-  public HandlerResponse handle(StartElement element, Object digestTarget) {
-    try {
-      String localName = element.getName().getLocalPart();
-      if ("person".equals(localName)) {
-        person = (Person) digestTarget;
-      } else if ("name".equals(localName)) {
-        person.setName(getText());
-      } else if ("date-of-birth".equals(localName)) {
-        person.setDateOfBirth(someDateParsingFunction(getText());
-      }    
-    } catch (Exception e) {
-      // TODO: Handle exceptions
+  public HandlerResponse handle(StartElement element, Object digestTarget) throws XMLStreamException {
+    String localName = element.getName().getLocalPart();
+    if ("person".equals(localName)) {
+      person = (Person) digestTarget;
+    } else if ("name".equals(localName)) {
+      person.setName(getText());
+    } else if ("date-of-birth".equals(localName)) {
+      person.setDateOfBirth(someDateParsingFunction(getText());
     }
+    return super.handle(element, digestTarget);
   }
   
   @Override
-  public HandlerResponse handle(EndElement element, Object digestTarget) {
-    try {
-      String localName = element.getName().getLocalPart();
-      if ("person".equals(localName)) {
-        return new FinishedParsingResponse();
-      }
-    } catch (Exception e) {
-      // TODO: Handle exceptions
+  public HandlerResponse handle(EndElement element, Object digestTarget) throws XMLStreamException {
+    String localName = element.getName().getLocalPart();
+    if ("person".equals(localName)) {
+      return new FinishedParsingResponse();
     }
+    return super.handle(element, digestTarget);
   }
 }
 ```
