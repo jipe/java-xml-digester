@@ -1,20 +1,18 @@
 package dk.defiant.xml.digester;
 
+import static org.junit.Assert.assertEquals;
+
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.EndElement;
 import javax.xml.stream.events.StartElement;
 
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import dk.defiant.xml.digester.handlers.SimpleDigesterEventHandler;
 import dk.defiant.xml.digester.responses.FinishedParsingResponse;
 
 public class XmlDigesterTest {
 
-	private static final Logger log = LoggerFactory.getLogger(XmlDigesterTest.class);
-	
 	class Person {
 		String addressBlob;
 		String name;
@@ -86,6 +84,11 @@ public class XmlDigesterTest {
 				"</person>";
 		
 		digester.digest(xml, person, new PersonHandler());
-		log.debug("Person address {}", person.getAddressBlob());
+		assertEquals("John Doe", person.getName());
+		assertEquals("<address>"
+		        + "    <!-- Address -->"
+		        + "    <street>street</street>"
+		        + "    <zip>1234</zip>"
+		        + "  </address>", person.getAddressBlob());
 	}
 }

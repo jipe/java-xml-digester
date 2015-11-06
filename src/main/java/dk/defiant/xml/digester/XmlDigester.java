@@ -36,7 +36,7 @@ public class XmlDigester {
 
 	private static final Logger log = LoggerFactory.getLogger(XmlDigester.class);
 	
-	public class State {
+	public class Context {
 	    Stack<DigesterEventHandler> eventHandlers = new Stack<DigesterEventHandler>();
 	    Stack<Object> digestTargets = new Stack<Object>();
 	    int depth, ignoredElementDepth;
@@ -82,40 +82,40 @@ public class XmlDigester {
 	 * @throws XMLStreamException
 	 */
 	public final void digest(Reader reader, Object digestTarget, DigesterEventHandler eventHandler) throws XMLStreamException {
-		State state = new State();
+		Context context = new Context();
         eventHandler.setXmlDigester(this);
-        eventHandler.setXmlDigesterState(state);
-		state.depth = 0;
-		state.ignoredElementDepth = 0;
-		state.ignoring = false;
+        eventHandler.setXmlDigesterContext(context);
+		context.depth = 0;
+		context.ignoredElementDepth = 0;
+		context.ignoring = false;
         XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
-        state.eventReader = xmlInputFactory.createXMLEventReader(reader);
-		state.eventHandlers.push(eventHandler);
-		state.digestTargets.push(digestTarget);
-		while (state.eventReader.hasNext() && state.eventHandlers.size() > 0) {
-			state.event = state.eventReader.nextEvent();
-			if (state.event.isStartElement()) {
-			    state.depth++;
-			} else if (state.event.isEndElement()) {
-			    state.depth--;
+        context.eventReader = xmlInputFactory.createXMLEventReader(reader);
+		context.eventHandlers.push(eventHandler);
+		context.digestTargets.push(digestTarget);
+		while (context.eventReader.hasNext() && context.eventHandlers.size() > 0) {
+			context.event = context.eventReader.nextEvent();
+			if (context.event.isStartElement()) {
+			    context.depth++;
+			} else if (context.event.isEndElement()) {
+			    context.depth--;
 			}
-			if (state.ignoring && state.depth < state.ignoredElementDepth) {
+			if (context.ignoring && context.depth < context.ignoredElementDepth) {
 				// We've escaped the ignored element
-			    state.ignoring = false;
+			    context.ignoring = false;
 			}
-			if (state.ignoring) {
+			if (context.ignoring) {
 				// Ignore event
 				if (log.isDebugEnabled()) {
-					if (state.event.isStartElement()) {
-						log.debug("Ignoring element '{}'", state.event.asStartElement().getName().getLocalPart());
+					if (context.event.isStartElement()) {
+						log.debug("Ignoring element '{}'", context.event.asStartElement().getName().getLocalPart());
 					}
 				}
 			} else {
-				HandlerResponse response = state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
+				HandlerResponse response = context.eventHandlers.peek().handle(context.event, context.digestTargets.peek());
 				if (HandlerResponse.Type.DELEGATE.equals(response.getType())) {
 					// Handler wants to delegate parsing to another handler
-					Object newDigestTarget = response.getDigestTarget() == null ? state.digestTargets.peek() : response.getDigestTarget();
-					state.digestTargets.push(newDigestTarget);
+					Object newDigestTarget = response.getDigestTarget() == null ? context.digestTargets.peek() : response.getDigestTarget();
+					context.digestTargets.push(newDigestTarget);
 					DigesterEventHandler handler = response.getHandler();
 					if (handler == null) {
 						// Only class of handler was given so we make a new instance of it
@@ -130,55 +130,55 @@ public class XmlDigester {
 						}
 					}
 					handler.setXmlDigester(this);
-					state.eventHandlers.push(handler);
-					state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
+					context.eventHandlers.push(handler);
+					context.eventHandlers.peek().handle(context.event, context.digestTargets.peek());
 				} else if (HandlerResponse.Type.FINISHED_PARSING.equals(response.getType())) {
 					// Handler finished its parsing
-				    state.eventHandlers.pop();
-					if (state.eventHandlers.size() > 0) {
-					    state.eventHandlers.peek().handle(state.event, state.digestTargets.peek());
+				    context.eventHandlers.pop();
+					if (context.eventHandlers.size() > 0) {
+					    context.eventHandlers.peek().handle(context.event, context.digestTargets.peek());
 					}
-					state.digestTargets.pop();
+					context.digestTargets.pop();
 				} else if (HandlerResponse.Type.ERROR.equals(response.getType())) {
 					// Handler returned an error
 					throw new RuntimeException("Handler returned " + BadHandlerResponse.class.getSimpleName());
 				} else if (HandlerResponse.Type.IGNORE_ELEMENT.equals(response.getType())) {
 					// Handler wants to ignore an element
-				    state.ignoredElementDepth = state.depth;
-				    state.ignoring = true;
+				    context.ignoredElementDepth = context.depth;
+				    context.ignoring = true;
 				}
 			}
 		}
 	}
 	
-	String getText(State state) throws XMLStreamException {
-		return state.eventReader.getElementText();
+	String getText(Context context) throws XMLStreamException {
+		return context.eventReader.getElementText();
 	}
 	
-	String getXmlFragment(State state, boolean includeFragmentRoot) throws XMLStreamException {
+	String getXmlFragment(Context context, boolean includeFragmentRoot) throws XMLStreamException {
 		StringWriter writer = new StringWriter();
 		int depth = 1; // Assuming we are viewing the start element event for the fragment
-		while (state.eventReader.hasNext() && depth > 0) {
+		while (context.eventReader.hasNext() && depth > 0) {
 			if (depth > 1 || includeFragmentRoot) {
-			    state.event.writeAsEncodedUnicode(writer);
+			    context.event.writeAsEncodedUnicode(writer);
 			} 
-			state.event = state.eventReader.nextEvent();
-			if (XMLEvent.START_ELEMENT == state.event.getEventType()) {
+			context.event = context.eventReader.nextEvent();
+			if (XMLEvent.START_ELEMENT == context.event.getEventType()) {
 				depth++;
-			} else if (XMLEvent.END_ELEMENT == state.event.getEventType()) {
+			} else if (XMLEvent.END_ELEMENT == context.event.getEventType()) {
 				depth--;
 				if (depth == 0) {
-				    state.event.writeAsEncodedUnicode(writer);
+				    context.event.writeAsEncodedUnicode(writer);
 				}
 			}
 		}
 		return writer.toString();
 	}
 	
-	Map<QName, String> getAttributes(State state) {
+	Map<QName, String> getAttributes(Context context) {
 		Map<QName, String> result = new HashMap<QName, String>();
-		if (state.event != null && XMLEvent.START_ELEMENT == state.event.getEventType()) {
-			StartElement element = state.event.asStartElement();
+		if (context.event != null && XMLEvent.START_ELEMENT == context.event.getEventType()) {
+			StartElement element = context.event.asStartElement();
 			@SuppressWarnings("unchecked")
 			Iterator<Attribute> attributes = element.getAttributes();
 			while (attributes.hasNext()) {

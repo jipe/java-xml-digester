@@ -22,7 +22,7 @@ import dk.defiant.xml.digester.responses.FinishedParsingResponse;
 public abstract class DigesterEventHandler {
 
     private XmlDigester digester;
-	private XmlDigester.State digesterState;
+	private XmlDigester.Context digesterState;
 	private StringBuilder characterBuffer = new StringBuilder();
 	
 	/**
@@ -225,7 +225,7 @@ public abstract class DigesterEventHandler {
 		this.digester = digester;
 	}
 	
-	void setXmlDigesterState(XmlDigester.State state) {
+	void setXmlDigesterContext(XmlDigester.Context state) {
 	    this.digesterState = state;
 	}
 	
