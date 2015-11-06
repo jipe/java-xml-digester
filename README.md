@@ -1,4 +1,4 @@
-# Java XML Digester [Work in progress]
+# Java XML Digester
 
 The Java XML Digester library is a tool for building Java objects from XML
 documents without having to have an XML Schema. It's designed to keep

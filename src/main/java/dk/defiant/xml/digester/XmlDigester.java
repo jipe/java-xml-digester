@@ -130,6 +130,7 @@ public class XmlDigester {
 						}
 					}
 					handler.setXmlDigester(this);
+					handler.setXmlDigesterContext(context);
 					context.eventHandlers.push(handler);
 					context.eventHandlers.peek().handle(context.event, context.digestTargets.peek());
 				} else if (HandlerResponse.Type.FINISHED_PARSING.equals(response.getType())) {
